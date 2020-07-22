@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
+"""Podcast Parser."""
 from bs4 import BeautifulSoup
 from datetime import datetime
 import email.utils
-from time import mktime
 
 
 class Item(object):
@@ -149,16 +149,15 @@ class Item(object):
         """Parses enclosure_url, enclosure_type then set values."""
         try:
             self.enclosure_url = self.soup.find("enclosure")["url"]
-        except:
+        except TypeError:
             self.enclosure_url = None
         try:
             self.enclosure_type = self.soup.find("enclosure")["type"]
-        except:
+        except TypeError:
             self.enclosure_type = None
         try:
             self.enclosure_length = self.soup.find("enclosure")["length"]
-            self.enclosure_length = int(self.enclosure_length)
-        except:
+        except TypeError:
             self.enclosure_length = None
 
     def set_guid(self):

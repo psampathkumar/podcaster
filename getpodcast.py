@@ -10,7 +10,10 @@ import shutil
 import socket
 import urllib.error
 import urllib.request
+import requests
+import tqdm
 import random
+import signal
 from Podcast import Podcast
 
 mimetypes.init()
@@ -19,13 +22,52 @@ headers = {
 }
 
 
+def TimedInput(prompt="", default=None, timeout=5):
+    """Input with timeout."""
+    import threading
+    import time
+
+    def print_countdown():
+        t = threading.currentThread()
+        while getattr(t, "do_run", True):
+            time.sleep(1)
+            try:
+                countdown = int(signal.getitimer(signal.ITIMER_REAL)[0])
+                print(countdown + 1, end="..", flush=True)
+                if bool(countdown):
+                    continue
+                return
+            except AlarmException:
+                return
+
+    class AlarmException(Exception):
+        pass
+
+    def alarmHandler(signum, frame):
+        raise AlarmException
+
+    signal.signal(signal.SIGALRM, alarmHandler)
+    signal.alarm(timeout)
+    t = threading.Thread(target=print_countdown)
+    t.start()
+    try:
+        text = input(prompt)
+        signal.alarm(0)
+        t.do_run = False
+        t.join()
+        return text
+    except AlarmException:
+        pass
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    return default
+
+
 def getpodcast(podcasts: dict) -> None:
     """Get Podcast."""
     # print list of podcasts
     get = True
     while get:
         pod, url = random.choice(list(podcasts.items()))
-        print(pod, url)
         get = process_podcast(pod, url)
 
 
@@ -35,7 +77,6 @@ def process_podcast(pod: str, url: str):
     try:
         request = urllib.request.Request(url, headers=headers)
         content = urllib.request.urlopen(request)
-        print("test")
         podcast = Podcast(content.read())
     except (urllib.error.HTTPError, urllib.error.URLError) as err:
         print(f"Podcast: {pod}")
@@ -44,8 +85,14 @@ def process_podcast(pod: str, url: str):
 
     while True:
         item = random.choice(podcast.items)
+        if not item.enclosure_type:
+            print(item.title, ":", item.link)
+            print("Not Playing, No links available")
+            return True
         try:
-            process_podcast_item(pod, item)
+            finish_playing = process_podcast_item(pod, item)
+            if finish_playing:
+                return True
             return False
         except SkipPodcast:
             return True
@@ -75,17 +122,28 @@ def process_podcast_item(pod: str, item: dict):
         "/home/pranav/mytools/random_podcaster/"
         + f"{pod}/{data['title']}_{data['date']}{data['ext']}"
     )
-    print(f"Podcast: {pod}")
-    print(f"Date:    {data['date']}")
-    print(f"Title:   {data['title']}")
-    print(f"File:    {newfilename}:")
+    print(f"Podcast Series:       {pod}")
+    print(f"Episode Title:        {data['title']}")
+    print(f"Date:                 {data['date']}")
+    print("Episode Description:  \n" + f"                      {item.description}")
 
-    ans = "Y"
-    ans = input("Try Streaming? (Y/n)")
+    ans = TimedInput(
+        prompt="Try Streaming ? (Y/n) Defaulting in:", default="Y", timeout=5,
+    )
     if not ans == "n":
-        call(["mpv", "--no-video", item.enclosure_url])
-        return
+        call(
+            [
+                "mpv",
+                "--no-video",
+                "--term-osd-bar",
+                "--term-osd-bar-chars=[##-]",
+                "--msg-level=all=error,statusline=status",
+                item.enclosure_url,
+            ],
+        )
+        return True
     # if file exist we check if filesize match with content length...
+    print(f"File:    {newfilename}:")
     if os.path.isfile(newfilename):
         newfilelength = os.path.getsize(newfilename)
         try:
@@ -132,6 +190,7 @@ def process_podcast_item(pod: str, item: dict):
         return  # continue
 
     call(["play", newfilename])
+    return True
 
 
 def try_download_item(newfilelength, newfilename, item):
@@ -183,25 +242,27 @@ def downloadFile(newfilename: str, enclosure_url: str) -> None:
     # download podcast
     print("Downloading ...")
 
-    """
-    r = requests.get(url, stream=True)
+    r = requests.get(enclosure_url, stream=True)
     # Total size in bytes.
-    total_size = int(r.headers.get('content-length', 0))
-    block_size = 1024 #1 Kibibyte
-    t=tqdm(total=total_size, unit='iB', unit_scale=True)
-    with open('test.dat', 'wb') as f:
-        for data in r.iter_content(block_size):
-            t.update(len(data))
-            f.write(data)
-    t.close()
-    if total_size != 0 and t.n != total_size:
-        print("ERROR, something went wrong")
+    total_size = int(r.headers.get("content-length", 0))
+    block_size = 1024  # 1 Kibibyte
+
+    with tqdm.tqdm(total=total_size, unit="iB", unit_scale=True) as t:
+        with open(newfilename, "wb") as out_file:
+            for data in r.iter_content(block_size):
+                t.update(len(data))
+                out_file.write(data)
+        if total_size != 0 and t.n != total_size:
+            print("ERROR, something went wrong")
 
     """
     request = urllib.request.Request(enclosure_url)
     with urllib.request.urlopen(request, timeout=30) as response:
+        total_size = int(response.info()["Content-Length"])
+        block_size = 1024  # 1 Kibibyte
         with open(newfilename, "wb") as out_file:
             shutil.copyfileobj(response, out_file, 100 * 1024)
+    """
 
     print("Download complete")
 
@@ -349,5 +410,12 @@ if __name__ == "__main__":
     podcasts = {
         "Casting Through Ancient Greece": "https://feeds.buzzsprout.com/809024.rss",
         "MindScape": "https://rss.art19.com/sean-carrolls-mindscape",
+        # "Lingthusiasm": "https://lingthusiasm.com/rss",
+        "Spartan History Podcast": "https://feeds.buzzsprout.com/685886.rss",
     }
-    getpodcast(podcasts)
+    try:
+        getpodcast(podcasts)
+    except KeyboardInterrupt:
+        signal.alarm(0)
+        print("\nExiting..")
+        exit()

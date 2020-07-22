@@ -12,4 +12,8 @@ Done by mishmashing quite a bit of code from [getpodcast](https://bitbucket.org/
 
 To Do:
  - Read podcasts from a separate file
- - Progress Bar
+ - Progress Bar for resuming too
+ - Read local files
+
+Maybe To Do:
+ - Support for podcasts with files embedded in youtube or soundcloud
