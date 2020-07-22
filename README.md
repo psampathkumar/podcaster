@@ -11,8 +11,8 @@ Done by mishmashing quite a bit of code from [getpodcast](https://bitbucket.org/
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/pranavtifr/podcaster/issues)
 
 To Do:
- - Read podcasts from a separate file
  - Progress Bar for resuming too
+ - Have a separate config file
 
 Maybe To Do:
  - Support for podcasts with files embedded in youtube or soundcloud

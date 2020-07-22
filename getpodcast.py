@@ -15,6 +15,7 @@ import tqdm
 import random
 import signal
 from Podcast import Podcast
+import configparser
 
 mimetypes.init()
 headers = {
@@ -62,61 +63,69 @@ def TimedInput(prompt="", default=None, timeout=5):
     return default
 
 
-def getpodcast(podcasts: dict) -> None:
+def getpodcast() -> None:
     """Get Podcast."""
     # print list of podcasts
     get = True
     while get:
-        pod, url = random.choice(list(podcasts.items()))
-        if url[:4] == "file":
-            newfilename = url[6:]
-            print(pod, ":", newfilename)
-            ans = TimedInput(
-                prompt="Play local copy ? (Y/n) Defaulting in:", default="Y", timeout=5,
-            )
-            if not ans == "n":
-                call(
-                    [
-                        "mpv",
-                        "--no-video",
-                        "--term-osd-bar",
-                        "--term-osd-bar-chars=[##-]",
-                        "--msg-level=all=error,statusline=status",
-                        newfilename,
-                    ],
-                )
-                get = True
-                continue
-        if url[:4] == "http":
-            get = process_podcast(pod, url)
+        podlist = configparser.ConfigParser()
+        podlist.read("/home/pranav/podcasts.ini")
+        podchoice = random.choice(list(podlist))
+        if podchoice == "DEFAULT":
             continue
+        get = process_podcast(podlist[podchoice])
 
 
-def process_podcast(pod: str, url: str):
+def process_podcast(podchoice):
     """Process Podcast."""
     # if --podcast is used we will only process a matching name
-    try:
-        request = urllib.request.Request(url, headers=headers)
-        content = urllib.request.urlopen(request)
-        podcast = Podcast(content.read())
-    except (urllib.error.HTTPError, urllib.error.URLError) as err:
-        print(f"Podcast: {pod}")
-        print(f"Connection error: {err}")
-        return  # continue
+    pod = podchoice["title"]
+    url = podchoice["url"]
+    print(pod, url)
+    if url[:4] == "file":
+        newfilename = url[6:]
+        print(pod, ":", newfilename)
+        ans = TimedInput(
+            prompt="Play local copy ? (Y/n) Defaulting in:", default="Y", timeout=5,
+        )
+        if not ans == "n":
+            call(
+                [
+                    "mpv",
+                    "--no-video",
+                    "--term-osd-bar",
+                    "--term-osd-bar-chars=[##-]",
+                    "--msg-level=all=error,statusline=status",
+                    newfilename,
+                ],
+            )
+        return True
 
-    while True:
-        item = random.choice(podcast.items)
-        if not item.enclosure_type:
-            print(item.title, ":", item.link)
-            print("Not Playing, No links available")
-            return True
+    if url[:4] == "http":
         try:
-            finish_playing = process_podcast_item(pod, item)
-            if finish_playing:
+            request = urllib.request.Request(url, headers=headers)
+            content = urllib.request.urlopen(request)
+            podcast = Podcast(content.read())
+        except (urllib.error.HTTPError, urllib.error.URLError) as err:
+            print(f"Podcast: {pod}")
+            print(f"Connection error: {err}")
+            return  # continue
+
+        while True:
+            item = random.choice(podcast.items)
+            if not item.enclosure_type:
+                print(item.title, ":", item.link)
+                print("Not Playing, No links available")
                 return True
-            return False
-        except SkipPodcast:
-            return True
+            try:
+                finish_playing = process_podcast_item(pod, item)
+                if finish_playing:
+                    return True
+                return False
+            except SkipPodcast:
+                return True
+    print("Weird URL in File", url)
+    exit()
 
 
 class SkipPodcast(Exception):
@@ -437,17 +446,8 @@ def parseUnixTimeToDatetime(datetimestamp: int) -> datetime.datetime:
 
 
 if __name__ == "__main__":
-    podcasts = {
-        "Casting Through Ancient Greece": "https://feeds.buzzsprout.com/809024.rss",
-        "MindScape": "https://rss.art19.com/sean-carrolls-mindscape",
-        # "Lingthusiasm": "https://lingthusiasm.com/rss",
-        "Spartan History Podcast": "https://feeds.buzzsprout.com/685886.rss",
-        "Hamilton (Local Copy)": "file://home/pranav/music/Hamilton_Audio.mp3",
-        "Writing Excuses": "https://writingexcuses.com/feed/",
-        "The History of China": "https://media.rss.com/thehistoryofchina/feed.xml",
-    }
     try:
-        getpodcast(podcasts)
+        getpodcast()
     except KeyboardInterrupt:
         signal.alarm(0)
         print("\nExiting..")
