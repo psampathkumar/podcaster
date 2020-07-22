@@ -68,7 +68,28 @@ def getpodcast(podcasts: dict) -> None:
     get = True
     while get:
         pod, url = random.choice(list(podcasts.items()))
-        get = process_podcast(pod, url)
+        if url[:4] == "file":
+            newfilename = url[6:]
+            print(pod, ":", newfilename)
+            ans = TimedInput(
+                prompt="Play local copy ? (Y/n) Defaulting in:", default="Y", timeout=5,
+            )
+            if not ans == "n":
+                call(
+                    [
+                        "mpv",
+                        "--no-video",
+                        "--term-osd-bar",
+                        "--term-osd-bar-chars=[##-]",
+                        "--msg-level=all=error,statusline=status",
+                        newfilename,
+                    ],
+                )
+                get = True
+                continue
+        if url[:4] == "http":
+            get = process_podcast(pod, url)
+            continue
 
 
 def process_podcast(pod: str, url: str):
@@ -109,7 +130,7 @@ def process_podcast_item(pod: str, item: dict):
     # skip if date is older then --date-from
     data = {
         "podcast": pod,
-        "date": item.date_time.strftime("%Y.%m.%d"),
+        "date": item.date_time.strftime("%d.%m.%Y"),
         "title": getSafeFilenameFromText(item.title.strip(" .")),  # scrub title
         "year": str(item.date_time.year),
         "ext": parseFileExtensionFromUrl(item.enclosure_url)
@@ -125,7 +146,7 @@ def process_podcast_item(pod: str, item: dict):
     print(f"Podcast Series:       {pod}")
     print(f"Episode Title:        {data['title']}")
     print(f"Date:                 {data['date']}")
-    print("Episode Description:  \n" + f"                      {item.description}")
+    print(f"Episode Description:  {item.description}")
 
     ans = TimedInput(
         prompt="Try Streaming ? (Y/n) Defaulting in:", default="Y", timeout=5,
@@ -189,7 +210,16 @@ def process_podcast_item(pod: str, item: dict):
         print("Connection timeout when downloading file")
         return  # continue
 
-    call(["play", newfilename])
+    call(
+        [
+            "mpv",
+            "--no-video",
+            "--term-osd-bar",
+            "--term-osd-bar-chars=[##-]",
+            "--msg-level=all=error,statusline=status",
+            newfilename,
+        ],
+    )
     return True
 
 
@@ -412,6 +442,9 @@ if __name__ == "__main__":
         "MindScape": "https://rss.art19.com/sean-carrolls-mindscape",
         # "Lingthusiasm": "https://lingthusiasm.com/rss",
         "Spartan History Podcast": "https://feeds.buzzsprout.com/685886.rss",
+        "Hamilton (Local Copy)": "file://home/pranav/music/Hamilton_Audio.mp3",
+        "Writing Excuses": "https://writingexcuses.com/feed/",
+        "The History of China": "https://media.rss.com/thehistoryofchina/feed.xml",
     }
     try:
         getpodcast(podcasts)
