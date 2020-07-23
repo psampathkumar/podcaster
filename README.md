@@ -12,7 +12,6 @@ Done by mishmashing quite a bit of code from [getpodcast](https://bitbucket.org/
 
 To Do:
  - Progress Bar for resuming too
- - Have a separate config file
 
 Maybe To Do:
  - Support for podcasts with files embedded in youtube or soundcloud

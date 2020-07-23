@@ -22,8 +22,14 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0) like Gecko",
 }
 
+podconfig = configparser.ConfigParser()
+podconfig.read(os.path.abspath(os.path.expanduser("~/.podcasterrc")))
+PODFILE = podconfig["default"]["podfile"]
+TIMEOUT = int(podconfig["default"]["timeout"])
+DOWNLOADDIR = os.path.abspath(os.path.expanduser(podconfig["default"]["downloaddir"]))
 
-def TimedInput(prompt="", default=None, timeout=5):
+
+def TimedInput(prompt="", default=None, timeout=TIMEOUT):
     """Input with timeout."""
     import threading
     import time
@@ -63,13 +69,14 @@ def TimedInput(prompt="", default=None, timeout=5):
     return default
 
 
-def getpodcast() -> None:
+def getpodcast(podcastfile: str) -> None:
     """Get Podcast."""
     # print list of podcasts
+    print(f"Reading from File: {podcastfile}")
     get = True
     while get:
         podlist = configparser.ConfigParser()
-        podlist.read("/home/pranav/podcasts.ini")
+        podlist.read(podcastfile)
         podchoice = random.choice(list(podlist))
         if podchoice == "DEFAULT":
             continue
@@ -81,13 +88,16 @@ def process_podcast(podchoice):
     # if --podcast is used we will only process a matching name
     pod = podchoice["title"]
     url = podchoice["url"]
+    lastcount = None
+    firstcount = None
     print(pod, url)
+    if "lastcount" in podchoice.keys():
+        lastcount = int(podchoice["lastcount"])
+    if "firstcount" in podchoice.keys():
+        firstcount = int(podchoice["firstcount"])
     if url[:4] == "file":
         newfilename = url[6:]
-        print(pod, ":", newfilename)
-        ans = TimedInput(
-            prompt="Play local copy ? (Y/n) Defaulting in:", default="Y", timeout=5,
-        )
+        ans = TimedInput(prompt="Play local copy ? (Y/n) Defaulting in:", default="Y")
         if not ans == "n":
             call(
                 [
@@ -112,7 +122,7 @@ def process_podcast(podchoice):
             return  # continue
 
         while True:
-            item = random.choice(podcast.items)
+            item = random.choice(podcast.items[lastcount:firstcount])
             if not item.enclosure_type:
                 print(item.title, ":", item.link)
                 print("Not Playing, No links available")
@@ -148,18 +158,15 @@ def process_podcast_item(pod: str, item: dict):
 
     newfilelength = 0
     newfilemtime = item.time_published
-    newfilename = (
-        "/home/pranav/mytools/random_podcaster/"
-        + f"{pod}/{data['title']}_{data['date']}{data['ext']}"
-    )
+    newfilename = DOWNLOADDIR + f"{pod}/{data['title']}_{data['date']}{data['ext']}"
     print(f"Podcast Series:       {pod}")
     print(f"Episode Title:        {data['title']}")
     print(f"Date:                 {data['date']}")
     print(f"Episode Description:  {item.description}")
 
-    ans = TimedInput(
-        prompt="Try Streaming ? (Y/n) Defaulting in:", default="Y", timeout=5,
-    )
+    ans = TimedInput(prompt="Try Streaming ? (Y/n/[s]kip) Defaulting in:", default="Y")
+    if ans == "s":
+        return True
     if not ans == "n":
         call(
             [
@@ -446,8 +453,17 @@ def parseUnixTimeToDatetime(datetimestamp: int) -> datetime.datetime:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Podcaster")
+    parser.add_argument(
+        "-f", "--podcastfile", type=str, help="podcast file location", default=PODFILE,
+    )
+
+    args = parser.parse_args()
+    podcastfilepath = os.path.abspath(os.path.expanduser(args.podcastfile))
     try:
-        getpodcast()
+        getpodcast(podcastfilepath)
     except KeyboardInterrupt:
         signal.alarm(0)
         print("\nExiting..")
