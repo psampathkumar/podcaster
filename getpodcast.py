@@ -164,8 +164,9 @@ def process_podcast_item(pod: str, item: dict):
     print(f"Podcast Series:       {pod}")
     print(f"Episode Title:        {data['title']}")
     print(f"Date:                 {data['date']}")
-    print("Description:")
-    print_formatted_text(HTML(bs4.BeautifulSoup(item.description, "html.parser")))
+    if item.description:
+        print("Description:")
+        print_formatted_text(HTML(bs4.BeautifulSoup(item.description, "html.parser")))
 
     ans = TimedInput(prompt="Try Streaming ? (Y/n/[s]kip) Defaulting in:", default="Y")
     if ans == "s":
