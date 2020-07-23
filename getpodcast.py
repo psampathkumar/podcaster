@@ -16,6 +16,8 @@ import random
 import signal
 from Podcast import Podcast
 import configparser
+from prompt_toolkit import print_formatted_text, HTML
+import bs4
 
 mimetypes.init()
 headers = {
@@ -162,7 +164,8 @@ def process_podcast_item(pod: str, item: dict):
     print(f"Podcast Series:       {pod}")
     print(f"Episode Title:        {data['title']}")
     print(f"Date:                 {data['date']}")
-    print(f"Episode Description:  {item.description}")
+    print("Description:")
+    print_formatted_text(HTML(bs4.BeautifulSoup(item.description, "html.parser")))
 
     ans = TimedInput(prompt="Try Streaming ? (Y/n/[s]kip) Defaulting in:", default="Y")
     if ans == "s":
