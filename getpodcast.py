@@ -2,7 +2,7 @@
 """My Podcaster."""
 import datetime
 import email.utils
-from subprocess import call
+from subprocess import call, check_output
 import mimetypes
 import os
 import re
@@ -92,11 +92,32 @@ def process_podcast(podchoice):
     url = podchoice["url"]
     lastcount = None
     firstcount = None
+    youtubelink = False
     print(pod, url)
     if "lastcount" in podchoice.keys():
         lastcount = int(podchoice["lastcount"])
     if "firstcount" in podchoice.keys():
         firstcount = int(podchoice["firstcount"])
+    if "youtubelink" in podchoice.keys():
+        youtubelink = str(podchoice["youtubelink"]).upper()
+    if youtubelink == "TRUE":
+        print("Youtube Playlist", pod)
+        ytvideolist = check_output(
+            ["youtube-dl", "--get-id", "--flat-playlist", url],
+        ).split()
+        ytvideo = random.choice(ytvideolist)[firstcount:lastcount]
+        call(
+            [
+                "mpv",
+                "--no-video",
+                "--term-osd-bar",
+                "--term-osd-bar-chars=[##-]",
+                "--msg-level=all=error,statusline=status",
+                "--ytdl",
+                f"https://www.youtube.com/watch?v={ytvideo.decode()}",
+            ],
+        )
+        return True
     if url[:4] == "file":
         newfilename = url[6:]
         ans = TimedInput(prompt="Play local copy ? (Y/n) Defaulting in:", default="Y")
@@ -124,7 +145,7 @@ def process_podcast(podchoice):
             return  # continue
 
         while True:
-            item = random.choice(podcast.items[lastcount:firstcount])
+            item = random.choice(podcast.items[firstcount:lastcount])
             if not item.enclosure_type:
                 print(item.title, ":", item.link)
                 print("Not Playing, No links available")

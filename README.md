@@ -1,6 +1,6 @@
 # Podcaster
   
-A terminal based podcasting app which plays a podcast in random from a given list of podcasts
+A terminal based podcasting app which plays a podcast in random from a given list of podcasts. supports youtube playlists too
 
 Done by mishmashing quite a bit of code from [getpodcast](https://bitbucket.org/fholmer/getpodcast/src/default/) and
 [pyPodcastparser](https://github.com/mr-rigden/pyPodcastParser)
