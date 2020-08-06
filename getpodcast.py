@@ -18,6 +18,9 @@ from Podcast import Podcast
 import configparser
 from prompt_toolkit import print_formatted_text, HTML
 import bs4
+import pandas
+
+random.seed(os.urandom(128))
 
 mimetypes.init()
 headers = {
@@ -27,8 +30,32 @@ headers = {
 podconfig = configparser.ConfigParser()
 podconfig.read(os.path.abspath(os.path.expanduser("~/.podcasterrc")))
 PODFILE = podconfig["default"]["podfile"]
+BETTERRANDOM = str(podconfig["betterrandom"]["master"]).upper()
+BETTERRANDOM_HISTCOUNT = int(podconfig["betterrandom"]["histcount"])
+BETTERRANDOM_HIST = os.path.abspath(
+    os.path.expanduser(podconfig["betterrandom"]["file"]),
+)
 TIMEOUT = int(podconfig["default"]["timeout"])
 DOWNLOADDIR = os.path.abspath(os.path.expanduser(podconfig["default"]["downloaddir"]))
+
+
+def write_history(pod, title):
+    """Append history to a file."""
+    try:
+        PLAYED = pandas.read_csv(BETTERRANDOM_HIST, index_col=0)
+    except FileNotFoundError:
+        PLAYED = pandas.DataFrame(columns=["Podcast", "Title"])
+    PLAYED = PLAYED.append({"Podcast": pod, "Title": title}, ignore_index=True)
+    PLAYED.to_csv(BETTERRANDOM_HIST)
+
+
+def check_history(pod, title):
+    """See if Pod was already played from recent history."""
+    try:
+        PLAYED = pandas.read_csv(BETTERRANDOM_HIST, index_col=0)
+    except FileNotFoundError:
+        PLAYED = pandas.DataFrame(columns=["Podcast", "Title"])
+    return any(PLAYED[-BETTERRANDOM_HISTCOUNT:].isin([pod, title]).all(axis="columns"))
 
 
 def TimedInput(prompt="", default=None, timeout=TIMEOUT):
@@ -39,8 +66,8 @@ def TimedInput(prompt="", default=None, timeout=TIMEOUT):
     def print_countdown():
         t = threading.currentThread()
         while getattr(t, "do_run", True):
-            time.sleep(1)
             try:
+                time.sleep(1)
                 countdown = int(signal.getitimer(signal.ITIMER_REAL)[0])
                 print(countdown + 1, end="..", flush=True)
                 if bool(countdown):
@@ -101,11 +128,30 @@ def process_podcast(podchoice):
     if "youtubelink" in podchoice.keys():
         youtubelink = str(podchoice["youtubelink"]).upper()
     if youtubelink == "TRUE":
-        print("Youtube Playlist", pod)
+        print("Youtube Playlist: ", pod)
         ytvideolist = check_output(
             ["youtube-dl", "--get-id", "--flat-playlist", url],
         ).split()
-        ytvideo = random.choice(ytvideolist)[firstcount:lastcount]
+        ytvideo = random.choice(ytvideolist[firstcount:lastcount])
+        title = check_output(
+            [
+                "youtube-dl",
+                "--get-title",
+                f"https://www.youtube.com/watch?v={ytvideo.decode()}",
+            ],
+        )
+        description = check_output(
+            [
+                "youtube-dl",
+                "--get-description",
+                f"https://www.youtube.com/watch?v={ytvideo.decode()}",
+            ],
+        )
+        print("Video Title: ", title.decode())
+        print("Video Description: ", description.decode())
+        if check_history(pod, title.decode()):
+            print("Skipping Because Played Recently")
+            return True
         call(
             [
                 "mpv",
@@ -117,9 +163,14 @@ def process_podcast(podchoice):
                 f"https://www.youtube.com/watch?v={ytvideo.decode()}",
             ],
         )
+        write_history(pod, title.decode())
+
         return True
     if url[:4] == "file":
         newfilename = url[6:]
+        if check_history(pod, "Local File"):
+            print("Skipping Because Played Recently")
+            return True
         ans = TimedInput(prompt="Play local copy ? (Y/n) Defaulting in:", default="Y")
         if not ans == "n":
             call(
@@ -132,6 +183,8 @@ def process_podcast(podchoice):
                     newfilename,
                 ],
             )
+
+        write_history(pod, "Local File")
         return True
 
     if url[:4] == "http":
@@ -193,6 +246,9 @@ def process_podcast_item(pod: str, item: dict):
     if ans == "s":
         return True
     if not ans == "n":
+        if check_history(pod, data["title"]):
+            print("Skipping Because Played Recently")
+            return True
         call(
             [
                 "mpv",
@@ -203,6 +259,8 @@ def process_podcast_item(pod: str, item: dict):
                 item.enclosure_url,
             ],
         )
+
+        write_history(pod, data["title"])
         return True
     # if file exist we check if filesize match with content length...
     print(f"File:    {newfilename}:")
