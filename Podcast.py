@@ -464,7 +464,7 @@ class Podcast:
 
     def set_soup(self):
         """Sets soup and strips items"""
-        self.soup = BeautifulSoup(self.feed_content, "html.parser")
+        self.soup = BeautifulSoup(self.feed_content, 'html.parser')
         for item in self.soup.findAll("item"):
             item.decompose()
         for image in self.soup.findAll("image"):
@@ -472,7 +472,7 @@ class Podcast:
 
     def set_full_soup(self):
         """Sets soup and keeps items"""
-        self.full_soup = BeautifulSoup(self.feed_content, "html.parser")
+        self.full_soup = BeautifulSoup(self.feed_content, 'html.parser')
 
     def set_items(self):
         self.items = []

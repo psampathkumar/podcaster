@@ -64,7 +64,7 @@ def TimedInput(prompt="", default=None, timeout=TIMEOUT):
     import time
 
     def print_countdown():
-        t = threading.currentThread()
+        t = threading.current_thread()
         while getattr(t, "do_run", True):
             try:
                 time.sleep(1)
@@ -98,7 +98,7 @@ def TimedInput(prompt="", default=None, timeout=TIMEOUT):
     return default
 
 
-def getpodcast(podcastfile: str) -> None:
+def getpodcast(podcastfile: str, songs:bool) -> None:
     """Get Podcast."""
     # print list of podcasts
     print(f"Reading from File: {podcastfile}")
@@ -109,6 +109,12 @@ def getpodcast(podcastfile: str) -> None:
         podchoice = random.choice(list(podlist))
         if podchoice == "DEFAULT":
             continue
+        if songs:
+            if ("songs" in podlist[podchoice].keys()) \
+                and (str(podlist[podchoice]['songs']).upper()== 'TRUE'):
+                get = process_podcast(podlist[podchoice])
+            else:
+                continue
         get = process_podcast(podlist[podchoice])
 
 
@@ -126,8 +132,9 @@ def process_podcast(podchoice):
     if "firstcount" in podchoice.keys():
         firstcount = int(podchoice["firstcount"])
     if "youtubelink" in podchoice.keys():
-        youtubelink = str(podchoice["youtubelink"]).upper()
-    if youtubelink == "TRUE":
+        youtubelink = str(podchoice['youtubelink']).upper()
+
+    if youtubelink == 'TRUE':
         print("Youtube Playlist: ", pod)
         ytvideolist = check_output(
             ["youtube-dl", "--get-id", "--flat-playlist", url],
@@ -542,11 +549,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f", "--podcastfile", type=str, help="podcast file location", default=PODFILE,
     )
+    parser.add_argument(
+        "--songs", help="song mode", action='store_true',
+    )
 
     args = parser.parse_args()
     podcastfilepath = os.path.abspath(os.path.expanduser(args.podcastfile))
+    if args.songs:
+        print("Executing in songs mode")
     try:
-        getpodcast(podcastfilepath)
+        getpodcast(podcastfilepath, args.songs)
     except KeyboardInterrupt:
         signal.alarm(0)
         print("\nExiting..")
